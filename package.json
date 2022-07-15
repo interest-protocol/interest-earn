@@ -17,7 +17,11 @@
   },
   "scripts": {
     "prepare": "husky install",
-    "test": "npx hardhat test"
+    "test": "npx hardhat test",
+    "coverage": "npx hardhat coverage --testfiles './test/**.ts'",
+    "clean": "npx hardhat clean && rimraf cache && rimraf artifacts",
+    "compile": "npx hardhat compile",
+    "publish": "npm publish contracts --access public"
   },
   "dependencies": {
     "@interest-protocol/tokens": "^1.1.0",

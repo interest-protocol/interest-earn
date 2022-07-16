@@ -1,7 +1,7 @@
 import { loadFixture, mine } from '@nomicfoundation/hardhat-network-helpers';
 import { anyUint } from '@nomicfoundation/hardhat-chai-matchers/withArgs';
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import { ethers, network } from 'hardhat';
 import { CasaDePapel, MintableERC20 } from '../typechain-types';
 import { BigNumber } from 'ethers';
 import {
@@ -972,5 +972,192 @@ describe('Casa De Papel', function () {
       treasuryBalance1,
       parseEther('1')
     );
+  });
+
+  describe('function: emergencyWithdraw', () => {
+    it('allows a user to withdraw tokens from a pool without getting any rewards', async () => {
+      const { casaDePapel, alice, owner, btc } = await loadFixture(
+        deployFixture
+      );
+
+      await casaDePapel.connect(owner).addPool(1500, btc.address, false);
+      const initialBalance = await btc.balanceOf(alice.address);
+      await casaDePapel.connect(alice).deposit(1, parseEther('5'));
+
+      const [userInfo, pool] = await Promise.all([
+        casaDePapel.userInfo(1, alice.address),
+        casaDePapel.pools(1),
+        casaDePapel.updateAllPools(),
+      ]);
+
+      expect(userInfo.amount).to.be.equal(parseEther('5'));
+      expect(userInfo.rewardsPaid).to.be.equal(0);
+      expect(pool.totalSupply).to.be.equal(parseEther('5'));
+      // Pool has rewards to be given but since this is an urgent withdraw they will not be given out
+      expect(pool.accruedIntPerShare.gt(0)).to.equal(true);
+
+      await expect(casaDePapel.connect(alice).emergencyWithdraw(1))
+        .to.emit(casaDePapel, 'EmergencyWithdraw')
+        .withArgs(alice.address, 1, parseEther('5'));
+
+      const [userInfo1, pool1] = await Promise.all([
+        casaDePapel.userInfo(1, alice.address),
+        casaDePapel.pools(1),
+      ]);
+
+      expect(await btc.balanceOf(alice.address)).to.be.equal(initialBalance);
+      expect(userInfo1.amount).to.be.equal(0);
+      expect(userInfo1.rewardsPaid).to.be.equal(0);
+      expect(pool1.totalSupply).to.be.equal(0);
+    });
+    it('allows a user to withdraw interest tokens from a pool without getting any rewards', async () => {
+      const { casaDePapel, alice, interestToken } = await loadFixture(
+        deployFixture
+      );
+
+      const initialBalance = await interestToken.balanceOf(alice.address);
+      await casaDePapel.connect(alice).stake(parseEther('5'));
+
+      const [userInfo, pool] = await Promise.all([
+        casaDePapel.userInfo(0, alice.address),
+        casaDePapel.pools(0),
+        casaDePapel.updateAllPools(),
+      ]);
+
+      expect(userInfo.amount).to.be.equal(parseEther('5'));
+      expect(userInfo.rewardsPaid).to.be.equal(0);
+      expect(pool.totalSupply).to.be.equal(parseEther('5'));
+      // Pool has rewards to be given but since this is an urgent withdraw they will not be given out
+      expect(pool.accruedIntPerShare.gt(0)).to.equal(true);
+
+      await expect(casaDePapel.connect(alice).emergencyWithdraw(0))
+        .to.emit(casaDePapel, 'EmergencyWithdraw')
+        .withArgs(alice.address, 0, parseEther('5'));
+
+      const [userInfo1, pool1] = await Promise.all([
+        casaDePapel.userInfo(0, alice.address),
+        casaDePapel.pools(0),
+      ]);
+
+      expect(await interestToken.balanceOf(alice.address)).to.be.equal(
+        initialBalance
+      );
+      expect(userInfo1.amount).to.be.equal(0);
+      expect(userInfo1.rewardsPaid).to.be.equal(0);
+      expect(pool1.totalSupply).to.be.equal(0);
+    });
+  });
+  it('allows to check how many pending rewards a user has in a specific pool', async () => {
+    const { casaDePapel, alice } = await loadFixture(deployFixture);
+
+    expect(
+      await casaDePapel.getUserPendingRewards(0, alice.address)
+    ).to.be.equal(0);
+
+    await casaDePapel.connect(alice).stake(parseEther('5'));
+
+    expect(
+      await casaDePapel.getUserPendingRewards(0, alice.address)
+    ).to.be.equal(0);
+
+    await mine(2);
+
+    const [block, pool, user, totalAllocationPoints] = await Promise.all([
+      ethers.provider.getBlockNumber(),
+      casaDePapel.pools(0),
+      casaDePapel.userInfo(0, alice.address),
+      casaDePapel.totalAllocationPoints(),
+    ]);
+
+    expect(
+      await casaDePapel.getUserPendingRewards(0, alice.address)
+    ).to.be.equal(
+      calculateUserPendingRewards(
+        user.amount,
+        calculateAccruedInt(
+          BigNumber.from(0),
+          BigNumber.from(block).sub(pool.lastRewardBlock),
+          pool.allocationPoints,
+          totalAllocationPoints,
+          pool.totalSupply
+        ),
+        user.rewardsPaid
+      )
+    );
+  });
+
+  describe('function: updatePool', () => {
+    it('does update the treasury balance if there are no rewards', async () => {
+      const { casaDePapel, alice } = await loadFixture(deployFixture);
+
+      // remove rewards
+      await casaDePapel.setIPXPerBlock(0);
+
+      await casaDePapel.connect(alice).stake(parseEther('5'));
+
+      await mine(START_BLOCK + 10);
+
+      await casaDePapel.connect(alice).stake(parseEther('5'));
+
+      await casaDePapel.pools(0);
+
+      await casaDePapel.updatePool(0);
+
+      expect(await casaDePapel.treasuryBalance()).to.be.equal(0);
+    });
+
+    it('updates the treasury balance', async () => {
+      const { casaDePapel, alice } = await loadFixture(deployFixture);
+
+      await casaDePapel.connect(alice).stake(parseEther('5'));
+
+      await mine(START_BLOCK + 10);
+
+      expect(await casaDePapel.treasuryBalance()).to.be.equal(0);
+
+      await expect(casaDePapel.updatePool(0)).to.emit(
+        casaDePapel,
+        'UpdatePool'
+      );
+
+      const pool = await casaDePapel.pools(0);
+
+      // divide by 10 ether to get 10%
+      expect(await casaDePapel.treasuryBalance()).to.be.equal(
+        pool.accruedIntPerShare.mul(parseEther('5')).div(parseEther('10'))
+      );
+    });
+
+    it('does not update a pool if it has already been updated on the same block', async () => {
+      const { casaDePapel, alice } = await loadFixture(deployFixture);
+
+      await expect(
+        casaDePapel.connect(alice).stake(parseEther('50'))
+      ).to.not.emit(casaDePapel, 'UpdatePool');
+
+      await mine(2);
+      await network.provider.send('evm_setAutomine', [false]);
+
+      const secondDepositTX = await casaDePapel
+        .connect(alice)
+        .stake(parseEther('50'));
+
+      const thirdDepositTX = await casaDePapel
+        .connect(alice)
+        .stake(parseEther('50'));
+
+      await mine(1);
+      await network.provider.send('evm_setAutomine', [true]);
+
+      await secondDepositTX.wait(1);
+      await thirdDepositTX.wait(1);
+      // No event is emitted on first deposit
+      // Only the second TX emitted an updatePool
+      // Third deposit on the same block as the second one. So no event was emitted.
+      expect(
+        (await casaDePapel.queryFilter(casaDePapel.filters.UpdatePool(0)))
+          .length
+      ).to.be.equal(1);
+    });
   });
 });

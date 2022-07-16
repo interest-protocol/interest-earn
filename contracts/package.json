@@ -1,0 +1,30 @@
+{
+  "name": "@interest-protocol/earn",
+  "description": "Interest Protocol earn contracts",
+  "version": "1.0.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "**/*.sol",
+    "!/test/**/*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/interest-protocol/interest-earn.git"
+  },
+  "keywords": [
+    "solidity",
+    "ethereum",
+    "smart",
+    "contracts",
+    "DeFi"
+  ],
+  "author": "Interest Labs Inc. <jose@interestprotocol.com>",
+  "license": "MIT",
+  "homepage": "https://interestprotocol.com",
+  "dependencies": {
+    "@interest-protocol/tokens": "^1.1.0",
+    "@openzeppelin/contracts": "^4.7.0"
+  }
+}

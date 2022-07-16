@@ -143,14 +143,4 @@ library Math {
             z := sub(x, y)
         }
     }
-
-    function uncheckedAdd(uint256 x, uint256 y)
-        internal
-        pure
-        returns (uint256 z)
-    {
-        assembly {
-            z := add(x, y)
-        }
-    }
 }

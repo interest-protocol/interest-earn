@@ -97,7 +97,7 @@ interface ICasaDePapel {
 
     function stake(uint256 amount) external;
 
-    function unstake(address account, uint256 amount) external;
+    function unstake(uint256 amount) external;
 
     function emergencyWithdraw(uint256 poolId) external;
 }

@@ -828,7 +828,7 @@ describe('Casa De Papel', function () {
 
       await casaDePapel.connect(alice).stake(parseEther('1'));
       await expect(
-        casaDePapel.connect(alice).unstake(alice.address, parseEther('1.1'))
+        casaDePapel.connect(alice).unstake(parseEther('1.1'))
       ).to.rejectedWith('CasaDePapel__WithdrawAmountTooHigh()');
     });
     it('returns only the rewards if the user chooses to', async () => {
@@ -846,7 +846,7 @@ describe('Casa De Papel', function () {
         casaDePapel.pools(0),
       ]);
 
-      await expect(casaDePapel.connect(alice).unstake(alice.address, 0))
+      await expect(casaDePapel.connect(alice).unstake(0))
         .to.emit(casaDePapel, 'Withdraw')
         .withArgs(alice.address, alice.address, 0, 0);
 
@@ -884,9 +884,7 @@ describe('Casa De Papel', function () {
 
       const user = await casaDePapel.userInfo(0, alice.address);
 
-      await expect(
-        casaDePapel.connect(alice).unstake(alice.address, parseEther('4'))
-      )
+      await expect(casaDePapel.connect(alice).unstake(parseEther('4')))
         .to.emit(casaDePapel, 'Withdraw')
         .withArgs(alice.address, alice.address, 0, parseEther('4'));
 
@@ -924,7 +922,7 @@ describe('Casa De Papel', function () {
       // Spend some blocks to accrue rewards
       await mine(2);
 
-      await casaDePapel.connect(alice).unstake(alice.address, parseEther('10'));
+      await casaDePapel.connect(alice).unstake(parseEther('10'));
 
       expect(await interestToken.balanceOf(alice.address)).to.be.equal(
         aliceIntBalance

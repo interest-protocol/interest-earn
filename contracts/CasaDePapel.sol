@@ -217,7 +217,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
 
         // Get global state in memory to save gas.
         Pool memory pool = pools[poolId];
-        User memory user = userInfo[poolId][_msgSender()];
+        User memory user = userInfo[poolId][msg.sender];
 
         // Variable to store how many rewards the user has accrued up to this block.
         uint256 pendingRewards;
@@ -237,7 +237,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         if (amount > 0) {
             // Get the tokens from the user first
             IERC20(pool.stakingToken).safeTransferFrom(
-                _msgSender(),
+                msg.sender,
                 address(this),
                 amount
             );
@@ -256,12 +256,12 @@ contract CasaDePapel is ICasaDePapel, Ownable {
 
         // Update global state
         pools[poolId] = pool;
-        userInfo[poolId][_msgSender()] = user;
+        userInfo[poolId][msg.sender] = user;
 
         // If the user has any pending rewards we send to him.
         if (pendingRewards > 0) {
             // Pay the user the rewards
-            INTEREST_TOKEN.mint(_msgSender(), pendingRewards);
+            INTEREST_TOKEN.mint(msg.sender, pendingRewards);
         }
 
         // There is no point to mint 0 tokens.
@@ -272,7 +272,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
             }
         }
 
-        emit Deposit(_msgSender(), poolId, amount);
+        emit Deposit(msg.sender, poolId, amount);
     }
 
     /**
@@ -288,7 +288,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         // {INTEREST_TOKEN} has to be staked via the `staking` function.
         if (poolId == 0) revert CasaDePapel__NoInterestTokenWithdraw();
 
-        User memory user = userInfo[poolId][_msgSender()];
+        User memory user = userInfo[poolId][msg.sender];
 
         if (amount > user.amount) revert CasaDePapel__WithdrawAmountTooHigh();
 
@@ -319,15 +319,15 @@ contract CasaDePapel is ICasaDePapel, Ownable {
 
         // Update global state
         pools[poolId] = pool;
-        userInfo[poolId][_msgSender()] = user;
+        userInfo[poolId][msg.sender] = user;
 
         if (amount > 0) {
-            IERC20(pool.stakingToken).safeTransfer(_msgSender(), amount);
+            IERC20(pool.stakingToken).safeTransfer(msg.sender, amount);
         }
 
         // Send the rewards if the user has any pending rewards.
         if (pendingRewards > 0) {
-            INTEREST_TOKEN.mint(_msgSender(), pendingRewards);
+            INTEREST_TOKEN.mint(msg.sender, pendingRewards);
         }
 
         // There is no point to mint 0 tokens.
@@ -338,7 +338,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
             }
         }
 
-        emit Withdraw(_msgSender(), _msgSender(), poolId, amount);
+        emit Withdraw(msg.sender, msg.sender, poolId, amount);
     }
 
     /**
@@ -355,7 +355,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
 
         // Save relevant state in memory.
         Pool memory pool = pools[0];
-        User memory user = userInfo[0][_msgSender()];
+        User memory user = userInfo[0][msg.sender];
 
         // Variable to store the rewards the user is entitled to get.
         uint256 pendingRewards;
@@ -374,7 +374,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         if (amount > 0) {
             // Get {INTEREST_TOKEN} from the `msg.sender`.
             IERC20(pool.stakingToken).safeTransferFrom(
-                _msgSender(),
+                msg.sender,
                 address(this),
                 amount
             );
@@ -390,12 +390,12 @@ contract CasaDePapel is ICasaDePapel, Ownable {
 
         // Update the global state.
         pools[0] = pool;
-        userInfo[0][_msgSender()] = user;
+        userInfo[0][msg.sender] = user;
 
         // If the user has any pending rewards. We send it to him.
         if (pendingRewards > 0) {
             InterestTokenInterface(address(pool.stakingToken)).mint(
-                _msgSender(),
+                msg.sender,
                 pendingRewards
             );
         }
@@ -408,7 +408,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
             }
         }
 
-        emit Deposit(_msgSender(), 0, amount);
+        emit Deposit(msg.sender, 0, amount);
     }
 
     /**
@@ -418,11 +418,10 @@ contract CasaDePapel is ICasaDePapel, Ownable {
      * @notice A different user with maxed allowance and enough {STAKED_INTEREST_TOKEN} can withdraw in behalf of the `account`.
      * @notice We use Open Zeppelin version 4.5.0-rc.0 that has a {transferFrom} function that does not decrease the allowance if is the maximum uint256.
      *
-     * @param account The address that will receive the tokens and rewards.
      * @param amount The number of {INTEREST_TOKEN} to withdraw to the `msg.sender`
      */
-    function unstake(address account, uint256 amount) external {
-        User memory user = userInfo[0][account];
+    function unstake(uint256 amount) external {
+        User memory user = userInfo[0][msg.sender];
 
         if (amount > user.amount) revert CasaDePapel__WithdrawAmountTooHigh();
 
@@ -450,16 +449,16 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         user.rewardsPaid = user.amount.wadMul(pool.accruedIntPerShare);
         // Update the global state.
         pools[0] = pool;
-        userInfo[0][account] = user;
+        userInfo[0][msg.sender] = user;
 
         if (amount > 0) {
-            IERC20(pool.stakingToken).safeTransfer(account, amount);
+            IERC20(pool.stakingToken).safeTransfer(msg.sender, amount);
         }
 
         // If there are any pending rewards we {mint} for the `recipient`.
         if (pendingRewards > 0) {
             InterestTokenInterface(address(pool.stakingToken)).mint(
-                account,
+                msg.sender,
                 pendingRewards
             );
         }
@@ -467,11 +466,11 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         // There is no point to mint 0 tokens.
         if (intReward > 0) {
             unchecked {
-                // We mint an additional 10% to the devAccount.
+                // We mint an additional 10% to the treasury.
                 treasuryBalance += intReward.wadMul(0.1e18);
             }
         }
-        emit Withdraw(_msgSender(), account, 0, amount);
+        emit Withdraw(msg.sender, msg.sender, 0, amount);
     }
 
     /**
@@ -486,7 +485,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
     function emergencyWithdraw(uint256 poolId) external {
         // No need to save gas on an urgent function
         Pool storage pool = pools[poolId];
-        User storage user = userInfo[poolId][_msgSender()];
+        User storage user = userInfo[poolId][msg.sender];
 
         uint256 amount = user.amount;
 
@@ -497,9 +496,9 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         // Update the pool total supply
         pool.totalSupply -= amount;
 
-        IERC20(pool.stakingToken).safeTransfer(_msgSender(), amount);
+        IERC20(pool.stakingToken).safeTransfer(msg.sender, amount);
 
-        emit EmergencyWithdraw(_msgSender(), poolId, amount);
+        emit EmergencyWithdraw(msg.sender, poolId, amount);
     }
 
     /*///////////////////////////////////////////////////////////////

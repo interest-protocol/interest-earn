@@ -181,18 +181,18 @@ describe('Casa De Papel', function () {
           casaDePapel.pools(1),
           casaDePapel.pools(2),
           casaDePapel.totalAllocationPoints(),
-          casaDePapel.connect(alice).deposit(1, parseEther('100')),
-          casaDePapel.connect(bob).deposit(1, parseEther('50')),
-          casaDePapel.connect(alice).deposit(2, parseEther('100')),
-          casaDePapel.connect(bob).deposit(2, parseEther('200')),
+          casaDePapel.connect(alice).stake(1, parseEther('100')),
+          casaDePapel.connect(bob).stake(1, parseEther('50')),
+          casaDePapel.connect(alice).stake(2, parseEther('100')),
+          casaDePapel.connect(bob).stake(2, parseEther('200')),
         ]);
       // Interest Pool gets 1/3 of 1500 (500) and adds it becoming it's allocation. So the total becomes 1500 + 2000
       expect(interestPool.allocationPoints).to.be.equal(1000);
       expect(btcPool.allocationPoints).to.be.equal(1500);
       expect(etherPool.allocationPoints).to.be.equal(1500);
       expect(totalAllocationPoints).to.be.equal(4000);
-      expect(btcPool.accruedIntPerShare).to.be.equal(0); // Fetched before the deposit update
-      expect(etherPool.accruedIntPerShare).to.be.equal(0); // Fetched before the deposit update
+      expect(btcPool.accruedIntPerShare).to.be.equal(0); // Fetched before the Stake update
+      expect(etherPool.accruedIntPerShare).to.be.equal(0); // Fetched before the Stake update
 
       // This is before the updateAllPools are called
       const [btcPool1, etherPool1, totalAllocationPoints1] = await Promise.all([
@@ -398,15 +398,7 @@ describe('Casa De Papel', function () {
     });
   });
 
-  describe('function: deposit', () => {
-    it('reverts if the aliceAccount tries to deposit to the pool 0', async () => {
-      const { casaDePapel, alice } = await loadFixture(deployFixture);
-
-      await expect(casaDePapel.connect(alice).deposit(0, 1)).to.be.rejectedWith(
-        'CasaDePapel__NoInterestTokenDeposit()'
-      );
-    });
-
+  describe('function: stake LPs', () => {
     it('allows the aliceAccount to only get the rewards', async () => {
       const { casaDePapel, alice, owner, btc, bob, interestToken } =
         await loadFixture(deployFixture);
@@ -414,8 +406,8 @@ describe('Casa De Papel', function () {
       await casaDePapel.connect(owner).addPool(1500, btc.address, false);
       await mine(START_BLOCK);
       await Promise.all([
-        casaDePapel.connect(bob).deposit(1, parseEther('10')),
-        casaDePapel.connect(alice).deposit(1, parseEther('7')),
+        casaDePapel.connect(bob).stake(1, parseEther('10')),
+        casaDePapel.connect(alice).stake(1, parseEther('7')),
       ]);
 
       const [pool, aliceAccount, balance, aliceBTCBalance] = await Promise.all([
@@ -434,8 +426,8 @@ describe('Casa De Papel', function () {
         pool.accruedIntPerShare.mul(aliceAccount.amount).div(parseEther('1'))
       );
 
-      await expect(casaDePapel.connect(alice).deposit(1, 0))
-        .to.emit(casaDePapel, 'Deposit')
+      await expect(casaDePapel.connect(alice).stake(1, 0))
+        .to.emit(casaDePapel, 'Stake')
         .withArgs(alice.address, 1, 0);
 
       const [pool1, aliceAccount1, interestTokenBalance1, aliceBTCBalance1] =
@@ -461,14 +453,14 @@ describe('Casa De Papel', function () {
       );
     });
 
-    it('allows for multiple deposits', async () => {
+    it('allows for multiple Stakes', async () => {
       const { casaDePapel, alice, owner, btc, interestToken } =
         await loadFixture(deployFixture);
 
       await casaDePapel.connect(owner).addPool(1500, btc.address, false);
 
-      await expect(casaDePapel.connect(alice).deposit(1, parseEther('6')))
-        .to.emit(casaDePapel, 'Deposit')
+      await expect(casaDePapel.connect(alice).stake(1, parseEther('6')))
+        .to.emit(casaDePapel, 'Stake')
         .withArgs(alice.address, 1, parseEther('6'));
 
       const [pool, user, balance, lpBalance] = await Promise.all([
@@ -484,8 +476,8 @@ describe('Casa De Papel', function () {
       // Accrue rewards
       await mine(2);
 
-      await expect(casaDePapel.connect(alice).deposit(1, parseEther('7')))
-        .to.emit(casaDePapel, 'Deposit')
+      await expect(casaDePapel.connect(alice).stake(1, parseEther('7')))
+        .to.emit(casaDePapel, 'Stake')
         .withArgs(alice.address, 1, parseEther('7'));
 
       const [pool1, user1, balance1, lpBalance1] = await Promise.all([
@@ -500,7 +492,7 @@ describe('Casa De Papel', function () {
       expect(user1.rewardsPaid).to.be.equal(
         user1.amount.mul(pool1.accruedIntPerShare).div(parseEther('1'))
       );
-      // Rewards r paid when depositing
+      // Rewards r paid when Stakeing
       expect(balance1).to.be.equal(
         balance.add(
           user.amount
@@ -536,9 +528,9 @@ describe('Casa De Papel', function () {
     expect(etherPool.accruedIntPerShare).to.be.equal(0);
 
     await Promise.all([
-      casaDePapel.connect(alice).stake(parseEther('11')),
-      casaDePapel.connect(alice).deposit(1, parseEther('6.5')),
-      casaDePapel.connect(alice).deposit(2, parseEther('23')),
+      casaDePapel.connect(alice).stake(0, parseEther('11')),
+      casaDePapel.connect(alice).stake(1, parseEther('6.5')),
+      casaDePapel.connect(alice).stake(2, parseEther('23')),
     ]);
 
     const [pool1, btcPool1, etherPool1] = await Promise.all([
@@ -601,31 +593,24 @@ describe('Casa De Papel', function () {
   });
 
   describe('function: withdraw', () => {
-    it('reverts if  you try to withdraw from pool 0', async () => {
-      const { casaDePapel, alice } = await loadFixture(deployFixture);
-
-      await expect(
-        casaDePapel.connect(alice).withdraw(0, 1)
-      ).to.be.rejectedWith('CasaDePapel__NoInterestTokenWithdraw()');
-    });
-    it('reverts if the user tries to withdraw more than what he has deposited', async () => {
+    it('reverts if the user tries to withdraw more than what he has Stakeed', async () => {
       const { casaDePapel, alice, owner, btc } = await loadFixture(
         deployFixture
       );
 
       await casaDePapel.connect(owner).addPool(1500, btc.address, false);
-      await casaDePapel.connect(alice).deposit(1, parseEther('2'));
+      await casaDePapel.connect(alice).stake(1, parseEther('2'));
 
       await expect(
-        casaDePapel.connect(alice).withdraw(1, parseEther('2.1'))
-      ).to.rejectedWith('CasaDePapel__WithdrawAmountTooHigh()');
+        casaDePapel.connect(alice).unstake(1, parseEther('2.1'))
+      ).to.rejectedWith('CasaDePapel__UnstakeAmountTooHigh()');
     });
     it('allows to only get the pending rewards', async () => {
       const { casaDePapel, alice, owner, btc, interestToken } =
         await loadFixture(deployFixture);
 
       await casaDePapel.connect(owner).addPool(1500, btc.address, false);
-      await casaDePapel.connect(alice).deposit(1, parseEther('7'));
+      await casaDePapel.connect(alice).stake(1, parseEther('7'));
 
       const [pool, user, balance] = await Promise.all([
         casaDePapel.pools(1),
@@ -636,9 +621,9 @@ describe('Casa De Papel', function () {
       // Accrue rewards
       await mine(2);
 
-      await expect(casaDePapel.connect(alice).withdraw(1, 0))
-        .to.emit(casaDePapel, 'Withdraw')
-        .withArgs(alice.address, alice.address, 1, 0);
+      await expect(casaDePapel.connect(alice).unstake(1, 0))
+        .to.emit(casaDePapel, 'Unstake')
+        .withArgs(alice.address, 1, 0);
 
       const [pool1, user1, balance1] = await Promise.all([
         casaDePapel.pools(1),
@@ -657,14 +642,14 @@ describe('Casa De Papel', function () {
         user1.amount.mul(pool1.accruedIntPerShare).div(parseEther('1'))
       );
     });
-    it('allows to withdraw deposited tokens', async () => {
+    it('allows to withdraw Stakeed tokens', async () => {
       const { casaDePapel, alice, owner, bob, btc, interestToken } =
         await loadFixture(deployFixture);
 
       await casaDePapel.connect(owner).addPool(1500, btc.address, false);
       await Promise.all([
-        casaDePapel.connect(alice).deposit(1, parseEther('7')),
-        casaDePapel.connect(bob).deposit(1, parseEther('8')),
+        casaDePapel.connect(alice).stake(1, parseEther('7')),
+        casaDePapel.connect(bob).stake(1, parseEther('8')),
       ]);
 
       const [pool, user, balance, lpBalance] = await Promise.all([
@@ -681,9 +666,9 @@ describe('Casa De Papel', function () {
       expect(user.rewardsPaid).to.be.equal(0);
       expect(pool.totalSupply).to.be.equal(parseEther('15'));
 
-      await expect(casaDePapel.connect(alice).withdraw(1, parseEther('3')))
-        .to.emit(casaDePapel, 'Withdraw')
-        .withArgs(alice.address, alice.address, 1, parseEther('3'));
+      await expect(casaDePapel.connect(alice).unstake(1, parseEther('3')))
+        .to.emit(casaDePapel, 'Unstake')
+        .withArgs(alice.address, 1, parseEther('3'));
 
       const [pool1, user1, balance1, lpBalance1] = await Promise.all([
         casaDePapel.pools(1),
@@ -715,12 +700,12 @@ describe('Casa De Papel', function () {
         casaDePapel.connect(owner).addPool(1500, btc.address, false),
         casaDePapel.connect(owner).setIPXPerBlock(0),
       ]);
-      await casaDePapel.connect(alice).deposit(1, parseEther('7'));
+      await casaDePapel.connect(alice).stake(1, parseEther('7'));
 
       // Accrue rewards
       await mine(2);
 
-      await casaDePapel.connect(alice).withdraw(1, parseEther('3'));
+      await casaDePapel.connect(alice).unstake(1, parseEther('3'));
 
       expect(await interestToken.balanceOf(alice.address)).to.be.equal(
         aliceIntBalance
@@ -728,15 +713,15 @@ describe('Casa De Papel', function () {
     });
   });
 
-  describe('function: stake', () => {
+  describe('function: stake IPX', () => {
     it('allows the user to only get the rewards by staking 0', async () => {
       const { casaDePapel, alice, bob, interestToken } = await loadFixture(
         deployFixture
       );
 
       await Promise.all([
-        casaDePapel.connect(bob).stake(parseEther('20')),
-        casaDePapel.connect(alice).stake(parseEther('5')),
+        casaDePapel.connect(bob).stake(0, parseEther('20')),
+        casaDePapel.connect(alice).stake(0, parseEther('5')),
       ]);
 
       const [pool, user, balance] = await Promise.all([
@@ -754,8 +739,8 @@ describe('Casa De Papel', function () {
       // Accrue rewards
       await mine(2);
 
-      await expect(casaDePapel.connect(alice).stake(0))
-        .to.emit(casaDePapel, 'Deposit')
+      await expect(casaDePapel.connect(alice).stake(0, 0))
+        .to.emit(casaDePapel, 'Stake')
         .withArgs(alice.address, 0, 0);
 
       const [pool1, user1, balance1] = await Promise.all([
@@ -782,7 +767,7 @@ describe('Casa De Papel', function () {
         deployFixture
       );
 
-      await casaDePapel.connect(alice).stake(parseEther('5'));
+      await casaDePapel.connect(alice).stake(0, parseEther('5'));
 
       const [pool, user, balance] = await Promise.all([
         casaDePapel.pools(0),
@@ -797,8 +782,8 @@ describe('Casa De Papel', function () {
       // Accrue rewards
       await mine(2);
 
-      await expect(casaDePapel.connect(alice).stake(parseEther('15')))
-        .to.emit(casaDePapel, 'Deposit')
+      await expect(casaDePapel.connect(alice).stake(0, parseEther('15')))
+        .to.emit(casaDePapel, 'Stake')
         .withArgs(alice.address, 0, parseEther('15'));
 
       const [pool1, user1, balance1] = await Promise.all([
@@ -816,27 +801,27 @@ describe('Casa De Papel', function () {
         balance
           // + Rewards
           .add(user.amount.mul(pool1.accruedIntPerShare).div(parseEther('1')))
-          // - Deposit
+          // - Stake
           .sub(parseEther('15'))
       );
     });
   });
 
-  describe('function: unstake', () => {
-    it('reverts if the user tries to withdraw more than he deposited', async () => {
+  describe('function: unstake IPX', () => {
+    it('reverts if the user tries to withdraw more than he Stakeed', async () => {
       const { casaDePapel, alice } = await loadFixture(deployFixture);
 
-      await casaDePapel.connect(alice).stake(parseEther('1'));
+      await casaDePapel.connect(alice).stake(0, parseEther('1'));
       await expect(
-        casaDePapel.connect(alice).unstake(parseEther('1.1'))
-      ).to.rejectedWith('CasaDePapel__WithdrawAmountTooHigh()');
+        casaDePapel.connect(alice).unstake(0, parseEther('1.1'))
+      ).to.rejectedWith('CasaDePapel__UnstakeAmountTooHigh()');
     });
     it('returns only the rewards if the user chooses to', async () => {
       const { casaDePapel, alice, interestToken } = await loadFixture(
         deployFixture
       );
       await mine(START_BLOCK);
-      await casaDePapel.connect(alice).stake(parseEther('10'));
+      await casaDePapel.connect(alice).stake(0, parseEther('10'));
 
       // Spend some blocks to accrue rewards
       await mine(2);
@@ -846,9 +831,9 @@ describe('Casa De Papel', function () {
         casaDePapel.pools(0),
       ]);
 
-      await expect(casaDePapel.connect(alice).unstake(0))
-        .to.emit(casaDePapel, 'Withdraw')
-        .withArgs(alice.address, alice.address, 0, 0);
+      await expect(casaDePapel.connect(alice).unstake(0, 0))
+        .to.emit(casaDePapel, 'Unstake')
+        .withArgs(alice.address, 0, 0);
 
       const [user1, pool1] = await Promise.all([
         casaDePapel.userInfo(0, alice.address),
@@ -869,7 +854,7 @@ describe('Casa De Papel', function () {
           parseEther('10'),
           pool1.accruedIntPerShare,
           BigNumber.from(0)
-          // Need to add her initial balance of 500 minus the 10 deposited
+          // Need to add her initial balance of 500 minus the 10 Stakeed
         ).add(parseEther('1490'))
       );
     });
@@ -878,15 +863,15 @@ describe('Casa De Papel', function () {
         deployFixture
       );
 
-      await casaDePapel.connect(alice).stake(parseEther('10'));
+      await casaDePapel.connect(alice).stake(0, parseEther('10'));
       // Spend some blocks to accrue rewards
       await mine(2);
 
       const user = await casaDePapel.userInfo(0, alice.address);
 
-      await expect(casaDePapel.connect(alice).unstake(parseEther('4')))
-        .to.emit(casaDePapel, 'Withdraw')
-        .withArgs(alice.address, alice.address, 0, parseEther('4'));
+      await expect(casaDePapel.connect(alice).unstake(0, parseEther('4')))
+        .to.emit(casaDePapel, 'Unstake')
+        .withArgs(alice.address, 0, parseEther('4'));
 
       const [user1, pool] = await Promise.all([
         casaDePapel.userInfo(0, alice.address),
@@ -907,7 +892,7 @@ describe('Casa De Papel', function () {
           parseEther('10'),
           pool.accruedIntPerShare,
           BigNumber.from(0)
-          // Need to add her initial balance of 1500 minus the 10 deposited
+          // Need to add her initial balance of 1500 minus the 10 Stakeed
         ).add(parseEther('1494'))
       );
     });
@@ -918,11 +903,11 @@ describe('Casa De Papel', function () {
 
       const aliceIntBalance = await interestToken.balanceOf(alice.address);
       await casaDePapel.connect(owner).setIPXPerBlock(0);
-      await casaDePapel.connect(alice).stake(parseEther('10'));
+      await casaDePapel.connect(alice).stake(0, parseEther('10'));
       // Spend some blocks to accrue rewards
       await mine(2);
 
-      await casaDePapel.connect(alice).unstake(parseEther('10'));
+      await casaDePapel.connect(alice).unstake(0, parseEther('10'));
 
       expect(await interestToken.balanceOf(alice.address)).to.be.equal(
         aliceIntBalance
@@ -936,7 +921,7 @@ describe('Casa De Papel', function () {
 
     await casaDePapel.connect(owner).addPool(1500, btc.address, false);
 
-    await casaDePapel.connect(alice).deposit(1, parseEther('7'));
+    await casaDePapel.connect(alice).stake(1, parseEther('7'));
 
     await mine(START_BLOCK * 10);
 
@@ -947,7 +932,7 @@ describe('Casa De Papel', function () {
 
     expect(treasuryBalance).to.be.equal(0);
 
-    await casaDePapel.connect(alice).deposit(1, parseEther('7'));
+    await casaDePapel.connect(alice).stake(1, parseEther('7'));
 
     const [pool1, treasuryBalance1] = await Promise.all([
       casaDePapel.pools(1),
@@ -980,7 +965,7 @@ describe('Casa De Papel', function () {
 
       await casaDePapel.connect(owner).addPool(1500, btc.address, false);
       const initialBalance = await btc.balanceOf(alice.address);
-      await casaDePapel.connect(alice).deposit(1, parseEther('5'));
+      await casaDePapel.connect(alice).stake(1, parseEther('5'));
 
       const [userInfo, pool] = await Promise.all([
         casaDePapel.userInfo(1, alice.address),
@@ -1014,7 +999,7 @@ describe('Casa De Papel', function () {
       );
 
       const initialBalance = await interestToken.balanceOf(alice.address);
-      await casaDePapel.connect(alice).stake(parseEther('5'));
+      await casaDePapel.connect(alice).stake(0, parseEther('5'));
 
       const [userInfo, pool] = await Promise.all([
         casaDePapel.userInfo(0, alice.address),
@@ -1052,7 +1037,7 @@ describe('Casa De Papel', function () {
       await casaDePapel.getUserPendingRewards(0, alice.address)
     ).to.be.equal(0);
 
-    await casaDePapel.connect(alice).stake(parseEther('5'));
+    await casaDePapel.connect(alice).stake(0, parseEther('5'));
 
     expect(
       await casaDePapel.getUserPendingRewards(0, alice.address)
@@ -1091,11 +1076,11 @@ describe('Casa De Papel', function () {
       // remove rewards
       await casaDePapel.setIPXPerBlock(0);
 
-      await casaDePapel.connect(alice).stake(parseEther('5'));
+      await casaDePapel.connect(alice).stake(0, parseEther('5'));
 
       await mine(START_BLOCK + 10);
 
-      await casaDePapel.connect(alice).stake(parseEther('5'));
+      await casaDePapel.connect(alice).stake(0, parseEther('5'));
 
       await casaDePapel.pools(0);
 
@@ -1107,7 +1092,7 @@ describe('Casa De Papel', function () {
     it('updates the treasury balance', async () => {
       const { casaDePapel, alice } = await loadFixture(deployFixture);
 
-      await casaDePapel.connect(alice).stake(parseEther('5'));
+      await casaDePapel.connect(alice).stake(0, parseEther('5'));
 
       await mine(START_BLOCK + 10);
 
@@ -1130,28 +1115,28 @@ describe('Casa De Papel', function () {
       const { casaDePapel, alice } = await loadFixture(deployFixture);
 
       await expect(
-        casaDePapel.connect(alice).stake(parseEther('50'))
+        casaDePapel.connect(alice).stake(0, parseEther('50'))
       ).to.not.emit(casaDePapel, 'UpdatePool');
 
       await mine(2);
       await network.provider.send('evm_setAutomine', [false]);
 
-      const secondDepositTX = await casaDePapel
+      const secondStakeTX = await casaDePapel
         .connect(alice)
-        .stake(parseEther('50'));
+        .stake(0, parseEther('50'));
 
-      const thirdDepositTX = await casaDePapel
+      const thirdStakeTX = await casaDePapel
         .connect(alice)
-        .stake(parseEther('50'));
+        .stake(0, parseEther('50'));
 
       await mine(1);
       await network.provider.send('evm_setAutomine', [true]);
 
-      await secondDepositTX.wait(1);
-      await thirdDepositTX.wait(1);
-      // No event is emitted on first deposit
+      await secondStakeTX.wait(1);
+      await thirdStakeTX.wait(1);
+      // No event is emitted on first Stake
       // Only the second TX emitted an updatePool
-      // Third deposit on the same block as the second one. So no event was emitted.
+      // Third Stake on the same block as the second one. So no event was emitted.
       expect(
         (await casaDePapel.queryFilter(casaDePapel.filters.UpdatePool(0)))
           .length

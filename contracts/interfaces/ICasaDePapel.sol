@@ -6,14 +6,9 @@ interface ICasaDePapel {
                                 EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    event Deposit(address indexed user, uint256 indexed poolId, uint256 amount);
+    event Stake(address indexed user, uint256 indexed poolId, uint256 amount);
 
-    event Withdraw(
-        address indexed user,
-        address indexed recipient,
-        uint256 indexed poolId,
-        uint256 amount
-    );
+    event Unstake(address indexed user, uint256 indexed poolId, uint256 amount);
 
     event EmergencyWithdraw(
         address indexed user,
@@ -91,13 +86,9 @@ interface ICasaDePapel {
 
     function updateAllPools() external;
 
-    function deposit(uint256 poolId, uint256 amount) external;
+    function stake(uint256 poolId, uint256 amount) external;
 
-    function withdraw(uint256 poolId, uint256 amount) external;
-
-    function stake(uint256 amount) external;
-
-    function unstake(uint256 amount) external;
+    function unstake(uint256 poolId, uint256 amount) external;
 
     function emergencyWithdraw(uint256 poolId) external;
 }

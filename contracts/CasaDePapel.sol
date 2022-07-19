@@ -200,162 +200,21 @@ contract CasaDePapel is ICasaDePapel, Ownable {
     }
 
     /**
-     * @dev This function is used for all tokens other than {INTEREST_TOKEN}.
-     *
-     * @notice It assumes the user has given {approval} to this contract.
-     * @notice It can be called to simply harvest the rewards if the `amount` is 0.
-     *
-     * @param poolId The id of the pool that the user wishes to make a deposit and/or harvest rewards.
-     * @param amount the number of tokens the user wishes to deposit. It can be 0 to simply harvest the rewards.
-     */
-    function deposit(uint256 poolId, uint256 amount) external {
-        // {INTEREST_TOKEN} has to be staked via the {staking} function.
-        if (poolId == 0) revert CasaDePapel__NoInterestTokenDeposit();
-
-        // Update all rewards before any operation for proper distribution of rewards.
-        uint256 intReward = _updatePool(poolId);
-
-        // Get global state in memory to save gas.
-        Pool memory pool = pools[poolId];
-        User memory user = userInfo[poolId][msg.sender];
-
-        // Variable to store how many rewards the user has accrued up to this block.
-        uint256 pendingRewards;
-
-        unchecked {
-            // If the user does not have any tokens deposited in this pool. He also does not have rewards.
-            // As we send all pending rewards on withdrawl and deposits.
-            if (user.amount > 0) {
-                // Calculate the user pending rewards by checking his % of the acruedIntPerShare minus what he got paid already.
-                pendingRewards =
-                    user.amount.wadMul(pool.accruedIntPerShare) -
-                    user.rewardsPaid;
-            }
-        }
-
-        // If he is making a deposit, we get the token and update the relevant state.
-        if (amount > 0) {
-            // Get the tokens from the user first
-            IERC20(pool.stakingToken).safeTransferFrom(
-                msg.sender,
-                address(this),
-                amount
-            );
-
-            unchecked {
-                // Update user deposited amount
-                user.amount += amount;
-            }
-
-            // Update pool total supply
-            pool.totalSupply += amount;
-        }
-
-        // He has been paid all rewards up to this point.
-        user.rewardsPaid = user.amount.wadMul(pool.accruedIntPerShare);
-
-        // Update global state
-        pools[poolId] = pool;
-        userInfo[poolId][msg.sender] = user;
-
-        // If the user has any pending rewards we send to him.
-        if (pendingRewards > 0) {
-            // Pay the user the rewards
-            INTEREST_TOKEN.mint(msg.sender, pendingRewards);
-        }
-
-        // There is no point to mint 0 tokens.
-        if (intReward > 0) {
-            unchecked {
-                // We mint an additional 10% to the devAccount.
-                treasuryBalance += intReward.wadMul(0.1e18);
-            }
-        }
-
-        emit Deposit(msg.sender, poolId, amount);
-    }
-
-    /**
-     * @dev This function allows the user to withdraw his staked tokens from a pool at `poolId`.
-     *
-     * @notice It assumes the user has given {approval} to this contract.
-     * @notice It can be called to simply harvest the rewards if the `amount` is 0.
-     *
-     * @param poolId the pool that `msg.sender` wishes to withdraw his funds from.
-     * @param amount Number of tokens the `msg.sender` wishes to withdraw.
-     */
-    function withdraw(uint256 poolId, uint256 amount) external {
-        // {INTEREST_TOKEN} has to be staked via the `staking` function.
-        if (poolId == 0) revert CasaDePapel__NoInterestTokenWithdraw();
-
-        User memory user = userInfo[poolId][msg.sender];
-
-        if (amount > user.amount) revert CasaDePapel__WithdrawAmountTooHigh();
-
-        // Update the rewards to properly pay the user.
-        uint256 intReward = _updatePool(poolId);
-
-        // Get global state in memory to save gas.
-        Pool memory pool = pools[poolId];
-
-        // User always has rewards if he has staked tokens. Unless he deposits and withdraws in the same block.
-        // Save user rewards before any state manipulation.
-        uint256 pendingRewards = user
-            .amount
-            .wadMul(pool.accruedIntPerShare)
-            .uncheckedSub(user.rewardsPaid);
-
-        // User can wish to simply get his pending rewards.
-        if (amount > 0) {
-            // Update the relevant state and send tokens to the user.
-            user.amount -= amount;
-            unchecked {
-                pool.totalSupply -= amount;
-            }
-        }
-
-        // Update the amount of reward paid to the user.
-        user.rewardsPaid = user.amount.wadMul(pool.accruedIntPerShare);
-
-        // Update global state
-        pools[poolId] = pool;
-        userInfo[poolId][msg.sender] = user;
-
-        if (amount > 0) {
-            IERC20(pool.stakingToken).safeTransfer(msg.sender, amount);
-        }
-
-        // Send the rewards if the user has any pending rewards.
-        if (pendingRewards > 0) {
-            INTEREST_TOKEN.mint(msg.sender, pendingRewards);
-        }
-
-        // There is no point to mint 0 tokens.
-        if (intReward > 0) {
-            unchecked {
-                // We mint an additional 10% to the devAccount.
-                treasuryBalance += intReward.wadMul(0.1e18);
-            }
-        }
-
-        emit Withdraw(msg.sender, msg.sender, poolId, amount);
-    }
-
-    /**
      * @dev This function allows the `msg.sender` to deposit {INTEREST_TOKEN} and start earning more {INTEREST_TOKENS}.
      * We have a different function for this tokens because it gives a receipt token.
      *
      * @notice It also gives a receipt token {STAKED_INTEREST_TOKEN}. The receipt token will be needed to withdraw the tokens!
      *
+     * @param poolId The id of the pool to stake
      * @param amount The number of {INTEREST_TOKEN} the `msg.sender` wishes to stake
      */
-    function stake(uint256 amount) external {
+    function stake(uint256 poolId, uint256 amount) external {
         // Update the pool to correctly calculate the rewards in this pool.
-        uint256 intReward = _updatePool(0);
+        uint256 intReward = _updatePool(poolId);
 
         // Save relevant state in memory.
-        Pool memory pool = pools[0];
-        User memory user = userInfo[0][msg.sender];
+        Pool memory pool = pools[poolId];
+        User memory user = userInfo[poolId][msg.sender];
 
         // Variable to store the rewards the user is entitled to get.
         uint256 pendingRewards;
@@ -389,15 +248,12 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         user.rewardsPaid = user.amount.wadMul(pool.accruedIntPerShare);
 
         // Update the global state.
-        pools[0] = pool;
-        userInfo[0][msg.sender] = user;
+        pools[poolId] = pool;
+        userInfo[poolId][msg.sender] = user;
 
         // If the user has any pending rewards. We send it to him.
         if (pendingRewards > 0) {
-            InterestTokenInterface(address(pool.stakingToken)).mint(
-                msg.sender,
-                pendingRewards
-            );
+            INTEREST_TOKEN.mint(msg.sender, pendingRewards);
         }
 
         // There is no point to mint 0 tokens.
@@ -408,7 +264,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
             }
         }
 
-        emit Deposit(msg.sender, 0, amount);
+        emit Stake(msg.sender, poolId, amount);
     }
 
     /**
@@ -418,18 +274,19 @@ contract CasaDePapel is ICasaDePapel, Ownable {
      * @notice A different user with maxed allowance and enough {STAKED_INTEREST_TOKEN} can withdraw in behalf of the `account`.
      * @notice We use Open Zeppelin version 4.5.0-rc.0 that has a {transferFrom} function that does not decrease the allowance if is the maximum uint256.
      *
+     * @param poolId The id of the pool to stake
      * @param amount The number of {INTEREST_TOKEN} to withdraw to the `msg.sender`
      */
-    function unstake(uint256 amount) external {
-        User memory user = userInfo[0][msg.sender];
+    function unstake(uint256 poolId, uint256 amount) external {
+        User memory user = userInfo[poolId][msg.sender];
 
-        if (amount > user.amount) revert CasaDePapel__WithdrawAmountTooHigh();
+        if (amount > user.amount) revert CasaDePapel__UnstakeAmountTooHigh();
 
         // Update the pool first to properly calculate the rewards.
-        uint256 intReward = _updatePool(0);
+        uint256 intReward = _updatePool(poolId);
 
         // Save relevant state in memory.
-        Pool memory pool = pools[0];
+        Pool memory pool = pools[poolId];
 
         // Calculate the pending rewards.
         uint256 pendingRewards = user.amount.wadMul(pool.accruedIntPerShare) -
@@ -448,8 +305,8 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         // Update `account` rewardsPaid. `Account` has been  paid in full amount up to this block.
         user.rewardsPaid = user.amount.wadMul(pool.accruedIntPerShare);
         // Update the global state.
-        pools[0] = pool;
-        userInfo[0][msg.sender] = user;
+        pools[poolId] = pool;
+        userInfo[poolId][msg.sender] = user;
 
         if (amount > 0) {
             IERC20(pool.stakingToken).safeTransfer(msg.sender, amount);
@@ -457,10 +314,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
 
         // If there are any pending rewards we {mint} for the `recipient`.
         if (pendingRewards > 0) {
-            InterestTokenInterface(address(pool.stakingToken)).mint(
-                msg.sender,
-                pendingRewards
-            );
+            INTEREST_TOKEN.mint(msg.sender, pendingRewards);
         }
 
         // There is no point to mint 0 tokens.
@@ -470,7 +324,8 @@ contract CasaDePapel is ICasaDePapel, Ownable {
                 treasuryBalance += intReward.wadMul(0.1e18);
             }
         }
-        emit Withdraw(msg.sender, msg.sender, 0, amount);
+
+        emit Unstake(msg.sender, poolId, amount);
     }
 
     /**

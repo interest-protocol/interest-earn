@@ -3,6 +3,7 @@
     "@commitlint/cli": "^17.0.3",
     "@commitlint/config-conventional": "^17.0.3",
     "@nomicfoundation/hardhat-toolbox": "^1.0.2",
+    "@nomiclabs/hardhat-etherscan": "^3.1.0",
     "eslint": "^8.19.0",
     "eslint-config-standard": "^17.0.0",
     "eslint-plugin-import": "^2.26.0",
@@ -24,6 +25,7 @@
     "publish": "npm publish contracts --access public"
   },
   "dependencies": {
+    "@interest-protocol/library": "^1.2.0",
     "@interest-protocol/tokens": "^1.1.0",
     "@openzeppelin/contracts": "^4.7.0"
   }

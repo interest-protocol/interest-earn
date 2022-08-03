@@ -2,22 +2,24 @@
 pragma solidity 0.8.15;
 
 import "@interest-protocol/tokens/interfaces/InterestTokenInterface.sol";
+import "@interest-protocol/library/MathLib.sol";
+import "@interest-protocol/library/SafeTransferErrors.sol";
+import "@interest-protocol/library/SafeTransferLib.sol";
+
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./errors/CasaDePapelErrors.sol";
 import "./interfaces/ICasaDePapel.sol";
-import "./lib/DataTypes.sol";
-import "./lib/Math.sol";
 
-contract CasaDePapel is ICasaDePapel, Ownable {
+import "./DataTypes.sol";
+
+contract CasaDePapel is ICasaDePapel, Ownable, SafeTransferErrors {
     /*///////////////////////////////////////////////////////////////
                             LIBRARIES
     //////////////////////////////////////////////////////////////*/
 
-    using SafeERC20 for IERC20;
-    using Math for uint256;
+    using SafeTransferLib for address;
+    using MathLib for uint256;
 
     /*///////////////////////////////////////////////////////////////
                                 STATE
@@ -146,9 +148,9 @@ contract CasaDePapel is ICasaDePapel, Ownable {
             );
             accruedIntPerShare =
                 accruedIntPerShare +
-                intReward.wadDiv(totalSupply);
+                intReward.fdiv(totalSupply);
         }
-        return user.amount.wadMul(accruedIntPerShare) - user.rewardsPaid;
+        return user.amount.fmul(accruedIntPerShare) - user.rewardsPaid;
     }
 
     /*///////////////////////////////////////////////////////////////
@@ -176,7 +178,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
             // We mint an additional 10% to the devAccount.
 
             unchecked {
-                treasuryBalance += intReward.wadMul(0.1e18);
+                treasuryBalance += intReward.fmul(0.1e18);
             }
         }
     }
@@ -224,7 +226,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
             if (user.amount > 0) {
                 // Note the base unit of {pool.accruedIntPerShare}.
                 pendingRewards =
-                    user.amount.wadMul(pool.accruedIntPerShare) -
+                    user.amount.fmul(pool.accruedIntPerShare) -
                     user.rewardsPaid;
             }
         }
@@ -232,7 +234,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         // Similarly to the {deposit} function, the user can simply harvest the rewards.
         if (amount > 0) {
             // Get {INTEREST_TOKEN} from the `msg.sender`.
-            IERC20(pool.stakingToken).safeTransferFrom(
+            pool.stakingToken.safeTransferFrom(
                 msg.sender,
                 address(this),
                 amount
@@ -245,7 +247,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         }
 
         // Update the state to indicate that the user has been paid all the rewards up to this block.
-        user.rewardsPaid = user.amount.wadMul(pool.accruedIntPerShare);
+        user.rewardsPaid = user.amount.fmul(pool.accruedIntPerShare);
 
         // Update the global state.
         pools[poolId] = pool;
@@ -260,7 +262,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         if (intReward > 0) {
             unchecked {
                 // We mint an additional 10% to the devAccount.
-                treasuryBalance += intReward.wadMul(0.1e18);
+                treasuryBalance += intReward.fmul(0.1e18);
             }
         }
 
@@ -289,7 +291,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         Pool memory pool = pools[poolId];
 
         // Calculate the pending rewards.
-        uint256 pendingRewards = user.amount.wadMul(pool.accruedIntPerShare) -
+        uint256 pendingRewards = user.amount.fmul(pool.accruedIntPerShare) -
             user.rewardsPaid;
 
         // The user can opt to simply get the rewards, if he passes an `amount` of 0.
@@ -303,13 +305,13 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         }
 
         // Update `account` rewardsPaid. `Account` has been  paid in full amount up to this block.
-        user.rewardsPaid = user.amount.wadMul(pool.accruedIntPerShare);
+        user.rewardsPaid = user.amount.fmul(pool.accruedIntPerShare);
         // Update the global state.
         pools[poolId] = pool;
         userInfo[poolId][msg.sender] = user;
 
         if (amount > 0) {
-            IERC20(pool.stakingToken).safeTransfer(msg.sender, amount);
+            pool.stakingToken.safeTransfer(msg.sender, amount);
         }
 
         // If there are any pending rewards we {mint} for the `recipient`.
@@ -321,7 +323,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         if (intReward > 0) {
             unchecked {
                 // We mint an additional 10% to the treasury.
-                treasuryBalance += intReward.wadMul(0.1e18);
+                treasuryBalance += intReward.fmul(0.1e18);
             }
         }
 
@@ -351,7 +353,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         // Update the pool total supply
         pool.totalSupply -= amount;
 
-        IERC20(pool.stakingToken).safeTransfer(msg.sender, amount);
+        pool.stakingToken.safeTransfer(msg.sender, amount);
 
         emit EmergencyWithdraw(msg.sender, poolId, amount);
     }
@@ -382,7 +384,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         }
 
         // Calculate how many blocks has passed since the last block.
-        uint256 blocksElapsed = block.number.uncheckedSub(pool.lastRewardBlock);
+        uint256 blocksElapsed = block.number.uSub(pool.lastRewardBlock);
 
         // We calculate how many {InterestToken} this pool is rewarded up to this block.
         uint256 intReward = (blocksElapsed * interestTokenPerBlock).mulDiv(
@@ -392,7 +394,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
 
         // This value stores all rewards the pool ever got.
         // Note: this variable i already per share as we divide by the `amountOfStakedTokens`.
-        pool.accruedIntPerShare += intReward.wadDiv(amountOfStakedTokens);
+        pool.accruedIntPerShare += intReward.fdiv(amountOfStakedTokens);
 
         pool.lastRewardBlock = block.number;
 
@@ -506,7 +508,7 @@ contract CasaDePapel is ICasaDePapel, Ownable {
         // Update the pool 0.
         _updateStakingPool();
 
-        uint256 id = pools.length.uncheckedSub(1);
+        uint256 id = pools.length.uAdd(1);
 
         getPoolId[token] = id;
 

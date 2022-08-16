@@ -25,8 +25,8 @@
     "publish": "npm publish contracts --access public"
   },
   "dependencies": {
-    "@interest-protocol/library": "^1.2.0",
-    "@interest-protocol/tokens": "^1.1.0",
-    "@openzeppelin/contracts": "^4.7.0"
+    "@interest-protocol/library": "^1.2.2",
+    "@interest-protocol/tokens": "^1.2.0",
+    "@openzeppelin/contracts": "^4.7.3"
   }
 }

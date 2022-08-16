@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: CC-BY-4.0
-pragma solidity 0.8.15;
+pragma solidity 0.8.16;
 
 struct User {
     uint256 amount; // How many {StakingToken} the user has in a specific pool.

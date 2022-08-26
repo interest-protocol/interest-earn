@@ -508,7 +508,7 @@ contract CasaDePapel is ICasaDePapel, Ownable, SafeTransferErrors {
         // Update the pool 0.
         _updateStakingPool();
 
-        uint256 id = pools.length.uAdd(1);
+        uint256 id = pools.length.uSub(1);
 
         getPoolId[token] = id;
 

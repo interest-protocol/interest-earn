@@ -323,12 +323,14 @@ describe('Casa De Papel', function () {
         totalAllocationPoints1,
         interestPool1,
         xFarm,
+        poolId,
       ] = await Promise.all([
         ethers.provider.getBlockNumber(),
         casaDePapel.getPoolsLength(),
         casaDePapel.totalAllocationPoints(),
         casaDePapel.pools(0),
         casaDePapel.pools(1),
+        casaDePapel.getPoolId(btc.address),
       ]);
 
       expect(totalPools1).to.be.equal(2);
@@ -339,6 +341,7 @@ describe('Casa De Papel', function () {
       expect(xFarm.stakingToken).to.be.equal(btc.address);
       expect(xFarm.accruedIntPerShare).to.be.equal(0);
       expect(xFarm.totalSupply).to.be.equal(0);
+      expect(poolId).to.be.equal(1);
     });
   });
 
@@ -593,7 +596,7 @@ describe('Casa De Papel', function () {
   });
 
   describe('function: withdraw', () => {
-    it('reverts if the user tries to withdraw more than what he has Stakeed', async () => {
+    it('reverts if the user tries to withdraw more than what he has staked', async () => {
       const { casaDePapel, alice, owner, btc } = await loadFixture(
         deployFixture
       );

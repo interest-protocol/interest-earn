@@ -114,7 +114,7 @@ contract DineroVault is Ownable, SafeTransferErrors {
         }
 
         // Mint Dinero to the user
-        DINERO.mint(msg.sender, amount);
+        DINERO.mint(msg.sender, dnrAmount);
 
         emit Deposit(msg.sender, amount, dnrAmount);
     }

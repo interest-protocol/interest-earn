@@ -29,5 +29,7 @@ module.exports = {
     ],
     'node/no-missing-import': 'error',
     'prettier/prettier': 'error',
+    'node/no-extraneous-import': 'off',
+    'node/no-unpublished-import': 'off',
   },
 };

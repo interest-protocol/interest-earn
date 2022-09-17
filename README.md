@@ -18,7 +18,7 @@ Core technologies:
 
 - [Typescript](https://www.typescriptlang.org/)
 - [Hardhat](https://hardhat.org/)
-- [Solidity 0.8.16](https://docs.soliditylang.org/)
+- [Solidity 0.8.17](https://docs.soliditylang.org/)
 
 ## Useful commands
 

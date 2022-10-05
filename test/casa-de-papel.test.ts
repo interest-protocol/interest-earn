@@ -278,7 +278,10 @@ describe('Casa De Papel', function () {
       await casaDePapel.connect(owner).addPool(1500, btc.address, false);
       await expect(
         casaDePapel.connect(owner).addPool(1500, btc.address, false)
-      ).to.be.rejectedWith('CasaDePapel__PoolAlreadyAdded()');
+      ).to.be.revertedWithCustomError(
+        casaDePapel,
+        'CasaDePapel__PoolAlreadyAdded'
+      );
     });
     it('sets the start block as the last reward block if the pool is added before the start block', async () => {
       const { btc, owner, interestToken, treasury } = await loadFixture(
@@ -606,7 +609,10 @@ describe('Casa De Papel', function () {
 
       await expect(
         casaDePapel.connect(alice).unstake(1, parseEther('2.1'))
-      ).to.rejectedWith('CasaDePapel__UnstakeAmountTooHigh()');
+      ).to.revertedWithCustomError(
+        casaDePapel,
+        'CasaDePapel__UnstakeAmountTooHigh'
+      );
     });
     it('allows to only get the pending rewards', async () => {
       const { casaDePapel, alice, owner, btc, interestToken } =
@@ -817,7 +823,10 @@ describe('Casa De Papel', function () {
       await casaDePapel.connect(alice).stake(0, parseEther('1'));
       await expect(
         casaDePapel.connect(alice).unstake(0, parseEther('1.1'))
-      ).to.rejectedWith('CasaDePapel__UnstakeAmountTooHigh()');
+      ).to.revertedWithCustomError(
+        casaDePapel,
+        'CasaDePapel__UnstakeAmountTooHigh'
+      );
     });
     it('returns only the rewards if the user chooses to', async () => {
       const { casaDePapel, alice, interestToken } = await loadFixture(
@@ -928,10 +937,7 @@ describe('Casa De Papel', function () {
 
     await mine(START_BLOCK * 10);
 
-    const [pool, treasuryBalance] = await Promise.all([
-      casaDePapel.pools(1),
-      casaDePapel.treasuryBalance(),
-    ]);
+    const treasuryBalance = await casaDePapel.treasuryBalance();
 
     expect(treasuryBalance).to.be.equal(0);
 

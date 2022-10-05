@@ -93,7 +93,10 @@ describe('DineroVault', function () {
 
       await expect(
         dineroVault.connect(alice).deposit(parseEther('101'))
-      ).to.rejectedWith('DineroVault__MaxDineroAmountReached()');
+      ).to.revertedWithCustomError(
+        dineroVault,
+        'DineroVault__MaxDineroAmountReached'
+      );
     });
 
     it('mints correct amount of dinero', async () => {
@@ -222,7 +225,10 @@ describe('DineroVault', function () {
 
         await expect(
           dineroVault.connect(alice).deposit(parseUSDT(101))
-        ).to.rejectedWith('DineroVault__MaxDineroAmountReached()');
+        ).to.revertedWithCustomError(
+          dineroVault,
+          'DineroVault__MaxDineroAmountReached'
+        );
       });
 
       it('mints correct amount of dinero', async () => {
